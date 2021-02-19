@@ -1,0 +1,728 @@
+openapi: 3.0.1
+info:
+  title: inMotion-PIB-CLD
+  description: Feb 19 2021
+  contact:
+    name: Squad-3
+    url: https://www.cncbinternational.com/
+  license:
+    name: © China CITIC Bank International Limited. All rights reserved.
+  version: "0.3"
+paths:
+  /CKWPortal/directbank/v2/cld/bestSeller:
+    get:
+      tags:
+      - To be confirmed
+      summary: Get best seller currency pairs.
+      description: ""
+      operationId: bestSeller
+      parameters:
+      - name: type
+        in: query
+        description: |-
+          * G - General CLD *default*
+          * PB - Private Banking CLD
+        required: false
+        allowEmptyValue: true
+        schema:
+          $ref: '#/components/schemas/CldType'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+              examples:
+                example:
+                  value: "[\"CNYCHF\",\"HKDGBP\"]"
+  /CKWPortal/directbank/v2/cld/boardRates:
+    get:
+      tags:
+      - Currency Linked Deposit
+      summary: CLD yield board rates.
+      description: "Depending on customer segment, different CLD type may apply. GENERAL\
+        \ CLD shall be used by default if type is not specified."
+      operationId: boardRates
+      parameters:
+      - name: tenorId
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - 1W
+          - 2W
+          - 1M
+          - 2M
+          - 3M
+      - name: depositCcy
+        in: query
+        required: true
+        schema:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: HKD
+      - name: tierId
+        in: query
+        required: true
+        schema:
+          type: string
+        example: HKD.T01
+      - name: type
+        in: query
+        description: |-
+          * G - General CLD *default*
+          * PB - Private Banking CLD
+        required: false
+        allowEmptyValue: true
+        schema:
+          $ref: '#/components/schemas/CldType'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardRates'
+  /CKWPortal/directbank/v2/cld/currencyPairs:
+    get:
+      tags:
+      - Currency Linked Deposit
+      summary: Get all currency pairs.
+      description: Source from stored procedure `IB_CLD_CURR_PAIR_SEL#ENABLED`.
+      operationId: currencyPairs
+      parameters:
+      - name: type
+        in: query
+        description: |-
+          * G - General CLD *default*
+          * PB - Private Banking CLD
+        required: false
+        allowEmptyValue: true
+        schema:
+          $ref: '#/components/schemas/CldType'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                example:
+                  CNY:
+                  - AUD
+                  - NZD
+                  USD:
+                  - AUD
+                  - NZD
+                  - CAD
+                  - GBP
+                  - EUR
+                  - JPY
+                  - CHF
+  /CKWPortal/directbank/v2/cld/fixStrike:
+    post:
+      tags:
+      - Currency Linked Deposit
+      summary: Get a CLD quotation by fixing the strike rate.
+      description: "Depending on the POST parameter, delegate to either `com.imarkets.api.APIClient.fixStrike()`\
+        \ or `fixStrikeByStrikeDollar()`."
+      operationId: fixStrike
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FixStrikeReq'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixStrikeResp'
+  /CKWPortal/directbank/v2/cld/highYields:
+    get:
+      tags:
+      - To be confirmed
+      summary: Get highest yield rate currency pairs.
+      description: ""
+      operationId: highestYieldRateCurrencyPairs
+      parameters:
+      - name: type
+        in: query
+        description: |-
+          * G - General CLD *default*
+          * PB - Private Banking CLD
+        required: false
+        allowEmptyValue: true
+        schema:
+          $ref: '#/components/schemas/CldType'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+              examples:
+                example:
+                  value: "[\"CNYCHF\",\"HKDGBP\"]"
+  /CKWPortal/directbank/v2/cld/placeOrder:
+    post:
+      tags:
+      - Currency Linked Deposit
+      summary: Place a CLD order.
+      description: |-
+        The API shall complete the following steps:
+        1. Hold fund via Avaloq;
+        2. Make a deal in iMarket;
+        3. Complete CLD transaction in Avaloq;
+        4. Write audit log in PIB.
+        5. Update VC log in table *TBL_PB_CLD* (Please refer to the `finally` block in `CldOpenNewController.doConfirm()`).
+
+        Different error codes shall be returned in case of any unsuccessful transaction for the sake of inMotion display. *Response* section has more details.
+      operationId: placeOrder
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CldOrderReq'
+      responses:
+        "200":
+          description: Success. Refer to `com.imarkets.api.domainObject.IMPlaceOrderResult`
+            for part of the properties.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CldOrderResp'
+        "406":
+          description: "Transaction not accepted due to\n* Insufficient balance\n\
+            * iMarket quote is expired \n\nMechanism must be provided for inMotion\
+            \ to distinguish different scenarios."
+        "500":
+          description: "Transaction failure, possible reason:\n* Avaloq connection\
+            \ issue\n* iMarket connection issue\n"
+  /CKWPortal/directbank/v2/cld/tenor:
+    get:
+      tags:
+      - Currency Linked Deposit
+      summary: Get tenor detail.
+      description: Simply delegate to `com.imarkets.api.APIClient.getTicketDetail()`.
+      operationId: tenor
+      parameters:
+      - name: tenorId
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - 1W
+          - 2W
+          - 1M
+          - 2M
+          - 3M
+      - name: depositCcy
+        in: query
+        required: true
+        schema:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: HKD
+      - name: linkedCcy
+        in: query
+        required: true
+        schema:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: USD
+      - name: type
+        in: query
+        description: |-
+          * G - General CLD *default*
+          * PB - Private Banking CLD
+        required: false
+        allowEmptyValue: true
+        schema:
+          $ref: '#/components/schemas/CldType'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CldTenor'
+  /CKWPortal/directbank/v2/cld/tiers:
+    get:
+      tags:
+      - Currency Linked Deposit
+      summary: Get the list of deposit tiers.
+      description: Simply delegate to `com.imarkets.api.APIClient.getDepositTransactionSize()`.
+      operationId: tiers
+      parameters:
+      - name: productType
+        in: query
+        required: true
+        schema:
+          type: string
+        example: CLD
+      - name: type
+        in: query
+        description: |-
+          * G - General CLD *default*
+          * PB - Private Banking CLD
+        required: false
+        allowEmptyValue: true
+        schema:
+          $ref: '#/components/schemas/CldType'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DepositTier'
+  /CKWPortal/directbank/v2/cld/txHistory:
+    get:
+      tags:
+      - Currency Linked Deposit
+      summary: Get CLD transaction history.
+      description: "*Note*: inMotion currently has a function to retrieve overall\
+        \ investment transaction history. The details of this API shall be finalized\
+        \ in a later time."
+      operationId: txHistory
+      parameters:
+      - name: rmId
+        in: query
+        required: true
+        schema:
+          type: string
+        example: HKIE7749852
+      - name: startDate
+        in: query
+        required: true
+        schema:
+          pattern: "^((19|2[0-9])[0-9]{2})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$"
+          type: string
+          format: date
+      - name: endDate
+        in: query
+        required: true
+        schema:
+          pattern: "^((19|2[0-9])[0-9]{2})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$"
+          type: string
+          format: date
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TxHistory'
+  /CKWPortal/directbank/v2/cld/type:
+    get:
+      tags:
+      - Currency Linked Deposit
+      summary: Get CLD type.
+      description: Get CLD type based on the customer's segment.
+      operationId: type
+      parameters:
+      - name: rmId
+        in: query
+        required: true
+        schema:
+          type: string
+        example: HKIE7749852
+      responses:
+        "200":
+          description: |-
+            * G - General CLD *default*
+            * PB - Private Banking CLD
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CldType'
+components:
+  schemas:
+    BoardRate:
+      type: object
+      properties:
+        atmStrikeRate:
+          type: number
+          example: 7.777
+        atmYieldRate:
+          type: number
+          example: 0.2686
+        linkedCcy:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: USD
+        otmStrikeRate:
+          type: number
+          example: 7.831
+        otmYieldRate:
+          type: number
+          example: 0.3721
+        spotRate:
+          type: number
+          example: 7.799
+    BoardRates:
+      type: object
+      properties:
+        depositCcy:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: HKD
+        depositTier:
+          type: string
+        rates:
+          uniqueItems: true
+          type: array
+          items:
+            $ref: '#/components/schemas/BoardRate'
+        tenorId:
+          type: string
+          enum:
+          - 1W
+          - 2W
+          - 1M
+          - 2M
+          - 3M
+        timestamp:
+          type: string
+          format: date-time
+          example: '2021-03-18T13:56:19.123+08:00'
+        type:
+          $ref: '#/components/schemas/CldType'
+      description: "The board rates for a specific combination of tenor, deposity\
+        \ currency, deposity amount range at a specific timestamp."
+    CldOrderReq:
+      allOf:
+      - $ref: '#/components/schemas/FixStrikeResp'
+      - type: object
+        properties:
+          accountNo:
+            type: string
+            description: Deposit account and linked account are the same. Please refer
+              to PIB code `portlets.personal.cld.cldOpenNew.CldOpenNewController.doConfirm()`.
+            example: "788102436951"
+          branchCd:
+            type: string
+            description: "inMotion branch code to be defined. * 999 - PIB \n * 998\
+              \ - MOB"
+            example: "666"
+          refNo:
+            type: string
+            description: Reference number generated by inMotion.
+            example: DB9981123456
+        description: The CLD order.
+    CldOrderResp:
+      allOf:
+      - $ref: '#/components/schemas/CldOrderReq'
+      - type: object
+        properties:
+          brokerNumber:
+            type: string
+          counterpartyCode:
+            type: string
+          dealNo:
+            type: string
+            description: Reference number generated by inMotion.
+            example: iMKT20210318140034852999
+          executionDateTime:
+            type: string
+          familyNo:
+            type: string
+          fdBranchCode:
+            type: string
+          fixingDateTime:
+            type: string
+            format: date-time
+            example: '2021-03-25T15:00:00+08:00'
+          normalInterestPortion:
+            type: number
+          normalInterestPortionCcy:
+            type: string
+          optionDeliveryDate:
+            type: string
+          optionExpiryDate:
+            type: string
+          optionPremiumPct:
+            type: number
+          optionPremiumPortion:
+            type: number
+          optionPremiumPortionCcy:
+            type: string
+          optionProviderID:
+            type: string
+          optionSettlementDate:
+            type: string
+          orderedBy:
+            type: string
+          premiumAmount:
+            type: number
+          premiumCcy:
+            type: string
+          staffCode:
+            type: string
+          timeDepositRate:
+            type: number
+          tradeDate:
+            type: string
+          valueDate:
+            type: string
+          yieldSpread:
+            type: number
+        description: Refer to `com.imarkets.api.domainObject.IMPlaceOrderResult` for
+          part of the properties.
+    CldTenor:
+      type: object
+      properties:
+        dayCount:
+          type: integer
+          format: int32
+          example: 7
+        depositCcy:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: HKD
+        fixingDate:
+          type: string
+          format: date
+          example: '2021-03-25'
+        linkedCcy:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: USD
+        maturityDate:
+          type: string
+          format: date
+          example: '2021-03-25'
+        paymentDate:
+          type: string
+          format: date
+          example: '2021-03-18'
+        tenorId:
+          type: string
+          enum:
+          - 1W
+          - 2W
+          - 1M
+          - 2M
+          - 3M
+        timestamp:
+          type: string
+          format: date-time
+          example: '2021-03-18T13:56:19.123+08:00'
+      description: The tenor detail of the specific currency pair at the specific
+        timestamp.
+    CldType:
+      type: string
+      description: |-
+        * G - General CLD *default*
+        * PB - Private Banking CLD
+      enum:
+      - G
+      - PB
+    DepositTier:
+      type: object
+      properties:
+        ccy:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: HKD
+        id:
+          type: string
+          example: HKD.T01
+        max:
+          multipleOf: 0.01
+          type: number
+          format: double
+          example: 200000
+        maxInclusive:
+          type: boolean
+          example: false
+        min:
+          multipleOf: 0.01
+          type: number
+          format: double
+          example: 95000
+        minInclusive:
+          type: boolean
+      description: A tier of deposit amount in a specific currency. The CLD yield
+        rate differs for different tiers.
+    FixStrikeReq:
+      type: object
+      properties:
+        basisPoint:
+          type: integer
+          description: Difference of the strike rate and spot rate in forms of basis
+            points. Either `basisPoint` or `strikeRate` exists in a *FixStrikeReq*.
+          format: int32
+          example: 30
+        depositAmt:
+          multipleOf: 0.01
+          type: number
+          format: double
+          example: 120000
+        depositCcy:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: HKD
+        linkedCcy:
+          pattern: "[A-Z]{3}"
+          type: string
+          example: USD
+        markupSpread:
+          multipleOf: 0.0000010
+          type: number
+          description: "* Markup yield spread, e.g, 0.0123 for 1.23% spread.\n* isStaff\
+            \ -> ESB0001a.PersonOEDCode is not blank.\n* `TBL_IB_SYS_PARAM[CD='CLD_STAFF_MARKUP'].VALUE`.\n"
+          format: double
+          example: 0.02
+        rmId:
+          type: string
+          description: It's found that *pibUid* may change if a customer cancels his/her
+            internet banking and reopens it. *rmId* is the unique identifier for a
+            customer and iMarket also utilizes it as a parameter to place an order.
+          example: HKIE7749852
+        strikeRate:
+          multipleOf: 0.0000010
+          type: number
+          description: Exact strike rate. Either `basisPoint` or `strikeRate` exists
+            in a *FixStrikeReq*.
+          format: double
+        tenor:
+          type: string
+          enum:
+          - 1W
+          - 2W
+          - 1M
+          - 2M
+          - 3M
+        type:
+          $ref: '#/components/schemas/CldType'
+    FixStrikeResp:
+      allOf:
+      - $ref: '#/components/schemas/FixStrikeReq'
+      - type: object
+        properties:
+          convertedAmt:
+            multipleOf: 0.01
+            type: number
+            format: double
+            example: 15482.83
+          fixingDate:
+            type: string
+            format: date
+            example: '2021-03-25'
+          interestAmt:
+            multipleOf: 0.01
+            type: number
+            format: double
+            example: 626.73
+          maturityDate:
+            type: string
+            format: date
+            example: '2021-03-25'
+          paymentDate:
+            type: string
+            format: date
+            example: '2021-03-18'
+          quoteId:
+            type: string
+            description: The unique identifier for a CLD quotation. `quoteId` needs
+              to be passed as a parameter to place an order.
+            example: a932e8
+          spotRate:
+            multipleOf: 0.0000010
+            type: number
+            format: double
+            example: 7.761
+          timestamp:
+            type: string
+            format: date-time
+            example: '2021-03-18T13:56:19.123+08:00'
+          yieldRate:
+            multipleOf: 0.0000010
+            type: number
+            format: double
+            example: 0.2686
+        description: The CLD quotation.
+    TxHistory:
+      type: object
+      properties:
+        accountOfficerId:
+          type: string
+        basisPoint:
+          type: integer
+          format: int32
+        branchId:
+          type: string
+        channel:
+          type: string
+        convertedRedemptionAmount:
+          type: number
+          format: double
+        customerReference:
+          type: string
+        dealNo:
+          type: string
+        depositAccount:
+          type: string
+        depositAmount:
+          type: number
+          format: double
+        depositCcyId:
+          type: string
+        depositDate:
+          type: string
+        depositPeriodInDays:
+          type: integer
+          format: int32
+        executionTime:
+          type: string
+        familyNo:
+          type: string
+        fixingDate:
+          type: string
+        interestRate:
+          type: number
+          format: double
+        linkedCcyId:
+          type: string
+        maturityDate:
+          type: string
+        orderNo:
+          type: string
+        redemptionAmount:
+          type: number
+          format: double
+        settlementAccount:
+          type: string
+        settlementAccountInDepositCcy:
+          type: string
+        settlementAccountInLinkedCcy:
+          type: string
+        spotPrice:
+          type: number
+          format: double
+        strikePrice:
+          type: number
+          format: double
+        tenorDescription:
+          type: string
+        tenorId:
+          type: string
+        yieldRate:
+          type: number
+          format: double
